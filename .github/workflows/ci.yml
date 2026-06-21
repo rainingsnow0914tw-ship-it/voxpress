@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Smoke test (Python ${{ matrix.python-version }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install package (editable)
+        run: pip install -e .
+
+      - name: Verify package metadata
+        run: |
+          python -c "import voxpress; print('voxpress version:', voxpress.__version__)"
+
+      - name: Smoke test (config loader, no audio / no model)
+        run: |
+          python -c "from voxpress.config import load_config, example_toml; c = load_config(); assert c['hotkey']; assert c['model']; assert c['device'] in ('auto','cuda','cpu'); print('config OK:', c)"
+
+      - name: Smoke test (stt module imports, no model load)
+        run: |
+          python -c "from voxpress.stt import WhisperEngine, make_wav_bytes; import numpy as np; b = make_wav_bytes(np.zeros(16000, dtype=np.float32)); assert len(b) > 32000; e = WhisperEngine(model_size='tiny', device='cpu', compute_type='int8'); assert not e.loaded; print('stt module OK')"
+
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff check
+        run: ruff check src/
+        continue-on-error: true   # 不擋 merge、僅提示
+
+      - name: Run ruff format check
+        run: ruff format --check src/
+        continue-on-error: true

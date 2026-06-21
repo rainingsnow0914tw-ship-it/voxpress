@@ -1,5 +1,10 @@
 # VoxPress
 
+[![CI](https://github.com/rainingsnow0914tw-ship-it/voxpress/actions/workflows/ci.yml/badge.svg)](https://github.com/rainingsnow0914tw-ship-it/voxpress/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6.svg)](https://github.com/rainingsnow0914tw-ship-it/voxpress)
+
 > Press a hotkey, talk, paste — anywhere on Windows.
 
 A tiny system tray app that turns your voice into text using local Whisper, then pastes it into the focused app. No cloud, no telemetry, no account. Just press `Alt+J`, speak, release, and your words appear at the cursor.
@@ -14,6 +19,27 @@ A tiny system tray app that turns your voice into text using local Whisper, then
 - **Works in any app** — Browser, terminal, IDE, chat, Notion, even admin shells. If you can type there, VoxPress can paste there.
 - **Traditional Chinese friendly** — Tested heavily on `zh-TW`. Default `large-v3` produces clean Traditional Chinese with proper punctuation. Mixed Chinese + English handled.
 - **Tiny footprint** — Single Python process, ~80 MB without the model, no Electron, no web server.
+
+## Why not [other tool]?
+
+| Tool | License | Local / Cloud | zh-TW quality | OS | Price | Runtime |
+| --- | --- | --- | --- | --- | --- | --- |
+| **VoxPress** | **MIT** | **100% local** | **⭐⭐⭐⭐⭐ first-class** | Windows | **Free** | Single Python process, ~80 MB |
+| SuperWhisper | Closed | Local | ⭐⭐⭐ | macOS only | $8.99 / mo | Native |
+| Wispr Flow | Closed | Cloud | ⭐⭐⭐⭐ | Win / Mac | $12 / mo | Audio uploaded to their servers |
+| WhisperWriter | GPL-3.0 | Local | ⭐⭐ | Win / Mac / Linux | Free | PyQt + Whisper |
+| open-wispr | MIT | Local + Cloud | ⭐⭐ | Win / Mac / Linux | Free | Electron, ~200 MB |
+| OpenWhispr | MIT | Local + Cloud | ⭐⭐ | Win / Mac / Linux | Free | Electron + Parakeet/Whisper |
+| Whisper_SST | (unspec) | Local | ⭐⭐ | Win | Free | PyAutoGUI scripts |
+| TypeWhisper | (unspec) | Local | ⭐⭐ | Win | Free | — |
+
+**What makes VoxPress different**:
+
+- **Traditional Chinese is the main use case, not an afterthought.** Built and tested daily with `zh-TW`. `large-v3` is the *default* model (not a tucked-away option). `initial_prompt` is a first-class config field for nudging Whisper toward Traditional characters and proper punctuation.
+- **No Electron.** Single Python process, ~80 MB. Most open-source dictation tools ship 200+ MB Electron shells.
+- **3 paste modes**, not just one. `ctrl_v` / `typing` / `clipboard_only` to handle apps that block clipboard paste (games, sandboxed UIs) or where you want manual control.
+- **Configurable via TOML**, not hardcoded. Change hotkey / model / language / paste behaviour without editing source.
+- **Truly local & private.** No telemetry, no account, no cloud round-trip. The only network activity is the one-time Whisper model download.
 
 ## How it works
 

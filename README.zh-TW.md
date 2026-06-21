@@ -1,5 +1,10 @@
 # VoxPress
 
+[![CI](https://github.com/rainingsnow0914tw-ship-it/voxpress/actions/workflows/ci.yml/badge.svg)](https://github.com/rainingsnow0914tw-ship-it/voxpress/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6.svg)](https://github.com/rainingsnow0914tw-ship-it/voxpress)
+
 > 按熱鍵 → 講話 → 自動貼到游標處。
 
 一個極小的 Windows 系統列工具：按 `Alt+J`、講話、再按一次、Whisper 在你電腦上跑、識別好的文字自動貼進當前 focus 視窗。零雲端、零追蹤、零帳號。
@@ -14,6 +19,27 @@
 - **任何 app 都能用** ── 瀏覽器、終端、IDE、聊天、Notion、甚至 admin PowerShell。只要那邊能 Ctrl+V、VoxPress 就能貼進去。
 - **繁體中文友善** ── 主力測試 `zh-TW`、預設 `large-v3` 出來的繁中標點乾淨。中英混雜也吃。
 - **體積小** ── 單一 Python process、不含模型 ~80 MB、沒有 Electron、沒有 web server。
+
+## 為什麼不用其他工具？
+
+| 工具 | License | 本地 / 雲端 | 繁中品質 | OS | 費用 | Runtime |
+| --- | --- | --- | --- | --- | --- | --- |
+| **VoxPress** | **MIT** | **100% 本地** | **⭐⭐⭐⭐⭐ 主力** | Windows | **免費** | 單一 Python process、~80 MB |
+| SuperWhisper | 閉源 | 本地 | ⭐⭐⭐ | 只 macOS | $8.99 / 月 | 原生 |
+| Wispr Flow | 閉源 | 雲端 | ⭐⭐⭐⭐ | Win / Mac | $12 / 月 | 音訊上傳到他們的 server |
+| WhisperWriter | GPL-3.0 | 本地 | ⭐⭐ | Win / Mac / Linux | 免費 | PyQt + Whisper |
+| open-wispr | MIT | 本地 + 雲 | ⭐⭐ | Win / Mac / Linux | 免費 | Electron、~200 MB |
+| OpenWhispr | MIT | 本地 + 雲 | ⭐⭐ | Win / Mac / Linux | 免費 | Electron + Parakeet/Whisper |
+| Whisper_SST | (未指定) | 本地 | ⭐⭐ | Win | 免費 | PyAutoGUI scripts |
+| TypeWhisper | (未指定) | 本地 | ⭐⭐ | Win | 免費 | — |
+
+**VoxPress 不一樣的地方**：
+
+- **繁體中文是主軸、不是附帶**。每天用 `zh-TW` 測試。`large-v3` 是**預設**模型（不是藏在選項裡）。`initial_prompt` 是第一順位的設定欄、用來引導 Whisper 用繁體 + 正確標點。
+- **沒有 Electron**。單一 Python process、~80 MB。多數開源聽寫工具都是 200+ MB Electron 殼。
+- **3 種貼上模式**、不只一種。`ctrl_v` / `typing` / `clipboard_only` 應付擋剪貼簿的 app（遊戲、sandbox UI）或想手動控制的情境。
+- **TOML 配置、不寫死**。改熱鍵 / 模型 / 語言 / 貼上行為不用改 source code。
+- **真本地、真私密**。零追蹤、零帳號、零雲端往返。唯一的網路活動是第一次下載 Whisper 模型。
 
 ## 怎麼運作
 
