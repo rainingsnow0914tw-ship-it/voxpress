@@ -18,6 +18,7 @@ DEFAULTS = {
     "language": "auto",        # auto / zh / en / ja / ko / ...
     "initial_prompt": "",      # guide Whisper（e.g. 用繁體中文）
     "paste_method": "ctrl_v",  # ctrl_v / typing / clipboard_only
+    "paste_delay_ms": 200,     # ctrl+v 前的等待毫秒數。50 太短、對話框 focus 沒切好會漏貼、200 是安全預設
     "notify": True,            # tray balloon after each transcription
     "sample_rate": 16000,
 }
@@ -80,6 +81,7 @@ compute_type = "auto"            # auto / float16 / int8 / int8_float16
 language = "auto"                # auto / zh / en / ja / ko / ...
 initial_prompt = ""              # 引導 Whisper（例：用繁體中文）
 paste_method = "ctrl_v"          # ctrl_v / typing / clipboard_only
+paste_delay_ms = 200             # ctrl+v 前等待(毫秒), 太短會漏貼、200 是安全預設
 notify = true                    # 結束後 tray 通知
 sample_rate = 16000
 """

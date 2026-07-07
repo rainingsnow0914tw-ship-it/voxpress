@@ -10,23 +10,39 @@ from typing import Optional
 
 def _ensure_cuda_libs_in_path():
     """nvidia-cublas-cu12 + nvidia-cudnn-cu12 DLL 路徑加進 Windows DLL search、
-    給 CTranslate2 找。faster-whisper GPU 模式需要。"""
+    給 CTranslate2 找。faster-whisper GPU 模式需要。
+
+    支援兩種套件結構:
+    - 舊版:  DLL 在 nvidia/{cublas,cudnn}/lib/
+    - 12.9+: DLL 在 nvidia/{cublas,cudnn}/bin/  (nvidia-cublas-cu12 12.9.2+ 起改此結構)
+    """
     if sys.platform != "win32":
         return
-    try:
-        import nvidia.cublas.lib
-        cublas_dir = Path(nvidia.cublas.lib.__file__).parent
-        os.add_dll_directory(str(cublas_dir))
-        os.environ["PATH"] = str(cublas_dir) + os.pathsep + os.environ.get("PATH", "")
-    except Exception:
-        pass
-    try:
-        import nvidia.cudnn.lib
-        cudnn_dir = Path(nvidia.cudnn.lib.__file__).parent
-        os.add_dll_directory(str(cudnn_dir))
-        os.environ["PATH"] = str(cudnn_dir) + os.pathsep + os.environ.get("PATH", "")
-    except Exception:
-        pass
+
+    import importlib.util
+    added = []
+    for pkg_name in ("nvidia.cublas", "nvidia.cudnn"):
+        try:
+            spec = importlib.util.find_spec(pkg_name)
+            if not spec or not spec.submodule_search_locations:
+                continue
+            for base in spec.submodule_search_locations:
+                pkg_dir = Path(base)
+                # 12.9+ 新結構 bin/ 優先, 舊版 lib/ 兜底
+                for subdir in ("bin", "lib"):
+                    target = pkg_dir / subdir
+                    if target.is_dir():
+                        try:
+                            os.add_dll_directory(str(target))
+                            os.environ["PATH"] = str(target) + os.pathsep + os.environ.get("PATH", "")
+                            added.append(str(target))
+                        except OSError:
+                            pass
+        except Exception:
+            continue
+
+    if added:
+        print(f"[voxpress] CUDA DLL paths: {len(added)} dir(s) added")
 
 
 class WhisperEngine:

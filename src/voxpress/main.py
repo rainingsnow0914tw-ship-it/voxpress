@@ -141,6 +141,8 @@ def _transcribe_and_paste():
 
 def _paste(text: str):
     method = config.get("paste_method", "ctrl_v")
+    # 給對話框 focus 切換時間, 50ms 太短會撞到 focus 尚未就緒的空窗期
+    delay = config.get("paste_delay_ms", 200) / 1000.0
     if method in ("ctrl_v", "clipboard_only"):
         pyperclip.copy(text)
     if method == "clipboard_only":
@@ -151,11 +153,11 @@ def _paste(text: str):
         except Exception as e:
             print(f"[paste] typing fail, fallback ctrl+v: {e}")
             pyperclip.copy(text)
-            time.sleep(0.05)
+            time.sleep(delay)
             keyboard.send("ctrl+v")
         return
     # ctrl_v
-    time.sleep(0.05)
+    time.sleep(delay)
     try:
         keyboard.send("ctrl+v")
     except Exception as e:
