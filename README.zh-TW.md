@@ -60,6 +60,20 @@ python -m pip install -e ".[gpu]"
 
 第一次辨識會透過 model dependency 的正常 Hugging Face 路徑下載所選 Whisper 模型；之後沿用 cache。
 
+### 已測硬體與效能範圍
+
+效能會受模型、運算精度、冷／熱啟動、音訊長度、CPU／GPU、記憶體及 Windows 環境影響。下表只提供參考點，不代表最低需求，也不保證所有電腦有相同延遲。
+
+| 電腦 | 設定 | 實際觀察 | 證據等級 |
+|---|---|---|---|
+| Samsung 960XGL；Windows 11 家用版 25H2（組建 26200.9168）；Intel Core Ultra 9 185H；64 GB RAM；RTX 4070 Laptop GPU（8 GB VRAM） | CUDA、`float16`、`large-v3-turbo` | 有限範圍的 live 驗收順暢。模型載入 5.606 秒；13.49 秒與 9.83 秒錄音分別在 816 ms、683 ms 完成辨識。 | 2026-08-12 重現並記錄 |
+| 配備 RTX 5090 的 Lenovo 電腦；CPU 與 RAM 未記錄 | 開啟 GPU 加速；模型與完整設定未記錄 | 維護協作者回報互動使用順暢。 | 現場觀察，不是儀器化 benchmark |
+| 同一台 Lenovo 電腦關閉 GPU 加速 | 僅 CPU；CPU、模型、運算精度、冷／熱啟動與音訊長度未記錄 | 曾回報一句話約需一分鐘。 | 未完整核實的現場觀察，不代表所有 CPU |
+
+若使用大型模型並重視互動延遲，強烈建議使用相容的 NVIDIA GPU。CPU mode 是正式支援的設定，但不建議以 CPU 執行大型模型作為互動式聽寫。僅使用 CPU 時，建議先從 `model = "small"`、`device = "cpu"`、`compute_type = "int8"` 開始，並預期較高延遲。
+
+有限範圍的驗收紀錄與尚未完成的 release gate 見 [v0.2 readiness](docs/V0.2_READINESS.md)。
+
 ## 使用
 
 1. 執行 `voxpress`，Windows 系統列出現紫色圓點。

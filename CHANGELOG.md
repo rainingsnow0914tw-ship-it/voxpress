@@ -16,6 +16,7 @@ All notable changes are documented here. The project follows [Keep a Changelog](
 - Security, privacy, architecture, contributing, and release documentation.
 - A documented public/private personalization boundary and future local lexicon-learning workflow.
 - A documented opt-in `🎤` receiving-AI convention for phonetic error handling, clarification, exact code/URL preservation, and private window-scoped configuration.
+- A tested-hardware table that separates a reproducible RTX 4070 live record from explicitly qualified field observations, plus a CPU large-model latency warning.
 
 ### Changed
 

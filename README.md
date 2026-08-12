@@ -60,6 +60,20 @@ python -m pip install -e ".[gpu]"
 
 The first transcription downloads the selected Whisper model through the model dependency's normal Hugging Face path. Later runs reuse its cache.
 
+### Tested hardware and performance scope
+
+Performance depends on the model, compute type, cold or warm model state, audio length, CPU/GPU, memory, and Windows environment. The observations below are reference points, not minimum requirements or universal latency guarantees.
+
+| System | Configuration | Observed result | Evidence level |
+|---|---|---|---|
+| Samsung 960XGL; Windows 11 Home 25H2 (build 26200.9168); Intel Core Ultra 9 185H; 64 GB RAM; RTX 4070 Laptop GPU with 8 GB VRAM | CUDA, `float16`, `large-v3-turbo` | Bounded live acceptance was smooth. Model loading took 5.606 s; 13.49 s and 9.83 s recordings transcribed in 816 ms and 683 ms. | Reproduced and recorded on 2026-08-12 |
+| Lenovo system with an RTX 5090; CPU and RAM not recorded | GPU acceleration enabled; exact model and settings not recorded | A maintainer collaborator reported smooth interactive use. | Field observation, not an instrumented benchmark |
+| The same Lenovo system with GPU acceleration disabled | CPU-only; CPU, model, compute type, cold/warm state, and audio duration not recorded | One utterance was reported to take roughly one minute. | Unverified field observation; not a general CPU benchmark |
+
+A compatible NVIDIA GPU is strongly recommended for low-latency interactive dictation with a large model. CPU mode is supported, but large models on CPU are not recommended for interactive use. CPU-only users should start with `model = "small"`, `device = "cpu"`, and `compute_type = "int8"`, and should expect higher latency.
+
+See [v0.2 readiness](docs/V0.2_READINESS.md) for the bounded acceptance record and remaining release gaps.
+
 ## Use
 
 1. Run `voxpress`; a purple dot appears in the Windows system tray.
