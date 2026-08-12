@@ -1,13 +1,13 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "voxpress"
-version = "0.1.0"
+version = "0.2.0"
 description = "Press a hotkey, talk, paste. A tiny Windows tray tool that turns your voice into text anywhere using local Whisper."
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 requires-python = ">=3.10"
 authors = [
     {name = "VoxPress contributors"},
@@ -17,7 +17,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Win32 (MS Windows)",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -45,7 +44,9 @@ gpu = [
 ]
 dev = [
     "pyinstaller>=6.0",
-    "ruff",
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "build>=1.2",
 ]
 
 [project.scripts]
@@ -61,3 +62,18 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 voxpress = ["*.ico", "*.png"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "windows: requires Windows adapters",
+    "live: touches a real keyboard, microphone, clipboard, model, or running app",
+    "slow: optional performance or soak test",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

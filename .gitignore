@@ -1,5 +1,9 @@
 # Python
 __pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 *.py[cod]
 *$py.class
 *.so
@@ -32,3 +36,13 @@ models/
 # Logs
 *.log
 .voxpress.log
+voxpress-audio-*.wav
+
+# Local user configuration / personalization
+.voxpress.toml
+.voxpress/
+vocab.json
+corrections.json
+learning_inbox.jsonl
+lexicon_candidates.json
+lexicon_review*.md

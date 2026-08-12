@@ -2,14 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  smoke:
-    name: Smoke test (Python ${{ matrix.python-version }})
+  test:
+    name: Tests (Windows / Python ${{ matrix.python-version }})
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -18,49 +20,80 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
-
-      - name: Install package (editable)
-        run: pip install -e .
-
-      - name: Verify package metadata
+      - name: Install runtime and test dependencies without downloading a model
         run: |
-          python -c "import voxpress; print('voxpress version:', voxpress.__version__)"
+          python -m pip install --upgrade pip
+          python -m pip install -e . pytest
 
-      - name: Smoke test (config loader, no audio / no model)
-        run: |
-          python -c "from voxpress.config import load_config, example_toml; c = load_config(); assert c['hotkey']; assert c['model']; assert c['device'] in ('auto','cuda','cpu'); print('config OK:', c)"
+      - name: Import runtime dependency surface
+        run: python -c "import faster_whisper, keyboard, numpy, PIL, pyperclip, pystray, sounddevice; print('runtime imports ok')"
 
-      - name: Smoke test (stt module imports, no model load)
+      - name: Run synthetic non-live suite
+        run: python -m pytest -m "not live" --strict-markers -q
+
+      - name: Verify package metadata and privacy-safe config command
         run: |
-          python -c "from voxpress.stt import WhisperEngine, make_wav_bytes; import numpy as np; b = make_wav_bytes(np.zeros(16000, dtype=np.float32)); assert len(b) > 32000; e = WhisperEngine(model_size='tiny', device='cpu', compute_type='int8'); assert not e.loaded; print('stt module OK')"
+          python -m voxpress --version
+          python -m voxpress --check-config
 
   lint:
-    name: Lint (ruff)
+    name: Ruff (blocking)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install Ruff
+        run: python -m pip install ruff
 
-      - name: Run ruff check
-        run: ruff check src/
-        continue-on-error: true   # 不擋 merge、僅提示
+      - name: Check
+        run: ruff check .
 
-      - name: Run ruff format check
-        run: ruff format --check src/
-        continue-on-error: true
+      - name: Format check
+        run: ruff format --check .
+
+  package:
+    name: Build wheel and source distribution
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Install wheel without runtime dependencies and import
+        shell: pwsh
+        run: |
+          $wheel = Get-ChildItem -LiteralPath dist -Filter "*.whl" | Select-Object -First 1
+          if (-not $wheel) { throw "wheel not produced" }
+          python -m pip install --no-deps --force-reinstall $wheel.FullName
+          python -c "import voxpress; assert voxpress.__version__ == '0.2.0'"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/*
+          if-no-files-found: error
