@@ -5,199 +5,168 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6.svg)](https://github.com/rainingsnow0914tw-ship-it/voxpress)
 
-> 按熱鍵 → 講話 → 自動貼到游標處。
+> 按熱鍵、說話，用本機 Whisper 辨識，再把文字貼進目前的 Windows app。
 
-一個極小的 Windows 系統列工具：按 `Alt+J`、講話、再按一次、Whisper 在你電腦上跑、識別好的文字自動貼進當前 focus 視窗。零雲端、零追蹤、零帳號。
+VoxPress 是 MIT 授權的 Windows 系統列聽寫工具。每次只擁有一段錄音，使用 `faster-whisper` 在本機辨識，把結果放進剪貼簿，並且可以貼上但絕不按 Enter。繁體中文是第一級使用情境；模型、語言、prompt、熱鍵與貼上方式都可設定。
 
-**[English README](README.md)**
+**[English](README.md)**
 
-![tray-states](docs/screenshots/states.png)
+## 目前發布狀態
 
-## 為什麼用 VoxPress
+v0.2 維護線正在把日常使用中累積的修復整理成公開版本。目前只支援從 source 安裝。VoxPress **尚未發布到 PyPI**，現有 v0.1 GitHub Release **也沒有 exe 資產**。在未來 release 明確提供並驗證以前，請不要使用 `pip install voxpress`，也不要期待能下載 `.exe`。
 
-- **真的本地** ── Whisper 完全在你電腦上跑、音訊不上雲、不上傳。
-- **任何 app 都能用** ── 瀏覽器、終端、IDE、聊天、Notion、甚至 admin PowerShell。只要那邊能 Ctrl+V、VoxPress 就能貼進去。
-- **繁體中文友善** ── 主力測試 `zh-TW`、預設 `large-v3` 出來的繁中標點乾淨。中英混雜也吃。
-- **體積小** ── 單一 Python process、不含模型 ~80 MB、沒有 Electron、沒有 web server。
+## v0.2 重點
 
-## 為什麼不用其他工具？
+- 每顆實體鍵獨立配對 down/up，左右鍵不共用一個模糊狀態。
+- 低階 hook 只分類事件與排入 queue；麥克風與 Whisper 不在 hook thread 執行。
+- 預設維持「按一下開始、再按一下停止」；可選 tap-toggle／hold-to-talk 混合模式。
+- 每次錄音擁有自己的 buffer、typed error、model reload lock、bounded worker queue。
+- 等修飾鍵放開、拒絕已知敏感 Windows 畫面、永遠不按 Enter。
+- `ctrl_v`、`typing`、`clipboard_only` 三種真正可運作的傳遞方式。
+- typed TOML、`VOXPRESS_*` 覆蓋、未知鍵告警、v0.1 API 相容層。
+- 輪替 log 與 tray 通知只寫 metadata，不顯示使用者說的正文。
+- CI 使用人工合成事件／文字／音訊，不開真麥克風、不掛真實全域熱鍵。
 
-| 工具 | License | 本地 / 雲端 | 繁中品質 | OS | 費用 | Runtime |
-| --- | --- | --- | --- | --- | --- | --- |
-| **VoxPress** | **MIT** | **100% 本地** | **⭐⭐⭐⭐⭐ 主力** | Windows | **免費** | 單一 Python process、~80 MB |
-| SuperWhisper | 閉源 | 本地 | ⭐⭐⭐ | 只 macOS | $8.99 / 月 | 原生 |
-| Wispr Flow | 閉源 | 雲端 | ⭐⭐⭐⭐ | Win / Mac | $12 / 月 | 音訊上傳到他們的 server |
-| WhisperWriter | GPL-3.0 | 本地 | ⭐⭐ | Win / Mac / Linux | 免費 | PyQt + Whisper |
-| open-wispr | MIT | 本地 + 雲 | ⭐⭐ | Win / Mac / Linux | 免費 | Electron、~200 MB |
-| OpenWhispr | MIT | 本地 + 雲 | ⭐⭐ | Win / Mac / Linux | 免費 | Electron + Parakeet/Whisper |
-| Whisper_SST | (未指定) | 本地 | ⭐⭐ | Win | 免費 | PyAutoGUI scripts |
-| TypeWhisper | (未指定) | 本地 | ⭐⭐ | Win | 免費 | — |
+## 資料流
 
-**VoxPress 不一樣的地方**：
-
-- **繁體中文是主軸、不是附帶**。每天用 `zh-TW` 測試。`large-v3` 是**預設**模型（不是藏在選項裡）。`initial_prompt` 是第一順位的設定欄、用來引導 Whisper 用繁體 + 正確標點。
-- **沒有 Electron**。單一 Python process、~80 MB。多數開源聽寫工具都是 200+ MB Electron 殼。
-- **3 種貼上模式**、不只一種。`ctrl_v` / `typing` / `clipboard_only` 應付擋剪貼簿的 app（遊戲、sandbox UI）或想手動控制的情境。
-- **TOML 配置、不寫死**。改熱鍵 / 模型 / 語言 / 貼上行為不用改 source code。
-- **真本地、真私密**。零追蹤、零帳號、零雲端往返。唯一的網路活動是第一次下載 Whisper 模型。
-
-## 怎麼運作
-
-```
-按 Alt+J  →  錄音  →  再按一次 Alt+J  →  Whisper 識別
-                                              ↓
-                                         文字 → 剪貼簿
-                                              ↓
-                                          模擬 Ctrl+V
-                                              ↓
-                                       貼進當前 focus 視窗
+```text
+hotkey -> 配對 state machine -> bounded queue -> 錄音 session
+                                           -> 本機 Whisper
+                                           -> corrections / prefix
+                                           -> 有 guard 的 clipboard / paste
 ```
 
-## 安裝
+預設 `Alt+J`：按一次開始，再按一次停止。設定 `interaction_mode = "hybrid"` 後，短按是 toggle、長按是按住講。
 
-### 方式 1：pip（推薦給工程師）
+## 從 source 安裝
 
-```powershell
-pip install voxpress
-
-# 有 NVIDIA GPU + CUDA 12 → 快很多：
-pip install voxpress[gpu]
-
-# 啟動
-voxpress
-```
-
-### 方式 2：單檔 .exe（推薦給一般使用者）
-
-去 [Releases](../../releases) 下載最新的 `voxpress.exe`、雙擊就跑。不用裝 Python。
-
-### 方式 3：從原始碼
+VoxPress 以 Windows、Python 3.10–3.13 為目標；v0.2 發佈前，公開 CI 的完整版本矩陣必須全部通過。
 
 ```powershell
 git clone https://github.com/rainingsnow0914tw-ship-it/voxpress
 cd voxpress
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-pip install -e .
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e .
 voxpress
 ```
 
-## 怎麼用
+NVIDIA CUDA 12：
 
-1. 跑 `voxpress`、右下角系統列出現一個紫色圓點。
-2. 按 **Alt+J**（預設熱鍵）── 圓點變紅、開始錄音。
-3. 講話。
-4. 再按一次 **Alt+J** ── 圓點變橘（辨識中）、然後變回紫色、文字自動貼進當前 focus 視窗。
+```powershell
+python -m pip install -e ".[gpu]"
+```
 
-**第一次跑會比較慢**：Whisper 要下載模型（`large-v3` 約 3 GB、cache 在 `%USERPROFILE%\.cache\huggingface\hub\`）。之後重啟就直接用 cache、快很多。
+第一次辨識會透過 model dependency 的正常 Hugging Face 路徑下載所選 Whisper 模型；之後沿用 cache。
 
-### 系統列圖示顏色
+## 使用
 
-| 顏色   | 意思                        |
-| ------ | --------------------------- |
-| 🟣 紫色 | Idle、按熱鍵就開始           |
-| 🔴 紅色 | 錄音中                       |
-| 🟠 橘色 | 辨識中                       |
-| ⚫ 灰色 | 出錯了、看 console 訊息      |
+1. 執行 `voxpress`，Windows 系統列出現紫色圓點。
+2. 按 `Alt+J`，變紅並開始錄音。
+3. 說話，再按一次 `Alt+J`。
+4. 變橘代表本機辨識中。
+5. VoxPress 把結果放進剪貼簿，再嘗試設定的傳遞方式。
 
-### 系統列右鍵選單
-
-- **Show config (console)** ── 印出當前設定
-- **Reload model** ── 強制重載模型
-- **Quit** ── 乾淨關閉
+VoxPress 不會自行提權。一般權限程式通常無法把輸入注入管理員視窗；請用 `clipboard_only` 手動貼，不要為了這件事把聽寫工具長期用 Administrator 執行。
 
 ## 設定
 
-VoxPress 找 `~/.voxpress.toml`（也就是 `C:\Users\你\.voxpress.toml`）。每個欄位都可選、沒設用預設。
+建立 `%USERPROFILE%\.voxpress.toml`，每個欄位都可省略。
 
 ```toml
-hotkey = "alt+j"                 # 任何按鍵組合；例「ctrl+alt+v」、「f9」、「win+shift+space」
-model = "large-v3"               # tiny / base / small / medium / large-v3 / large-v3-turbo
-device = "auto"                  # auto / cuda / cpu
-compute_type = "auto"            # auto / float16 / int8 / int8_float16
-language = "auto"                # auto / zh / en / ja / ko 等
-initial_prompt = ""              # 引導 Whisper、例：「請用繁體中文。」
-paste_method = "ctrl_v"          # ctrl_v / typing / clipboard_only
-notify = true                    # 結束後系統列氣泡通知
+hotkey = "alt+j"
+interaction_mode = "toggle"       # toggle / hybrid
+hold_threshold_ms = 300
+
+model = "large-v3"
+device = "auto"                   # auto / cuda / cpu
+compute_type = "auto"
+language = "auto"
+initial_prompt = ""
 sample_rate = 16000
+
+paste_method = "ctrl_v"           # ctrl_v / typing / clipboard_only
+paste_delay_ms = 200
+paste_modifier_timeout_ms = 2000
+strict_focus_guard = false
+auto_release_stuck_win = true
+
+notify = true                      # 只顯示 metadata，不顯示辨識正文
+prefix = ""
+prefix_windows = ""                # 逗號分隔視窗標題；空白代表所有視窗
+temp_audio_ttl_hours = 24
 ```
 
-也可以用環境變數覆蓋：
+也可以用 `VOXPRESS_<欄位>` 覆蓋：
 
 ```powershell
-$env:VOXPRESS_HOTKEY = "ctrl+alt+v"
-$env:VOXPRESS_MODEL  = "medium"
-voxpress
+$env:VOXPRESS_MODEL = "small"
+$env:VOXPRESS_DEVICE = "cpu"
+voxpress --check-config
 ```
 
-### 模型大小 / 品質 / 速度
-
-| 模型             | VRAM  | 品質           | 速度（4090 / 4 秒音訊）|
-| ---------------- | ----- | -------------- | --------------------- |
-| `tiny`           | ~1 GB | 只夠英文        | <1 秒                |
-| `base`           | ~1 GB | 普通            | ~1 秒                |
-| `small`          | ~2 GB | 不錯            | ~1 秒                |
-| `medium`         | ~3 GB | 很好            | ~2 秒                |
-| `large-v3`       | ~3 GB | **最佳、預設** | ~3 秒                |
-| `large-v3-turbo` | ~3 GB | 接近 large-v3   | ~2 秒                |
-
-CPU 慢約 10 倍。`small` 在 CPU 跑短句子還可以接受。
+`--check-config` 只印可公開 metadata，不會印 prompt、prefix 或本機個人化檔案路徑。
 
 ### 貼上模式
 
-- `ctrl_v`（預設）── 最穩、模擬 Ctrl+V、任何能貼的地方都活。
-- `typing` ── 一字一字打、用在 Ctrl+V 被擋的地方。
-- `clipboard_only` ── 只 copy 到剪貼簿、你自己 Ctrl+V。用在敏感場景。
+- `ctrl_v`：完整文字留在剪貼簿，只送 `Ctrl+V`。
+- `typing`：完整文字仍留剪貼簿並逐字輸入；換行會攤平成空白，確保不會送 Enter。若輸入器可能已寫出一部分才失敗，VoxPress 不會再補貼整段 `Ctrl+V`，請用剪貼簿中的完整文字手動復原。
+- `clipboard_only`：只複製，不送任何按鍵。
 
-## 疑難排解
+若修飾鍵仍按著、偵測到敏感目標、strict focus 已變更或注入失敗，文字會留在剪貼簿供手動復原。敏感目標偵測是 best-effort，不能辨認所有密碼欄。
 
-### 防毒軟體警告
+## 個人詞庫與修正
 
-VoxPress 用 `keyboard` 函式庫註冊全域熱鍵、用 Windows `SendInput` API 模擬 Ctrl+V。有些防毒 / EDR 會把這種模式當 keylogger 行為警告。
+可選檔案放在 `%USERPROFILE%\.voxpress\`：
 
-**它不是 keylogger。** VoxPress 只**送出**按鍵（Ctrl+V）、不記錄你打了什麼。Source code 全開、可自行 audit。如果 AV 擋了、在防毒軟體把 `voxpress` 安裝資料夾加白名單即可。
+- `vocab.json`：人工範例 `{"style_hint":"繁體中文","terms":["專案詞"]}`
+- `corrections.json`：人工範例 `{"常見誤聽":"偏好文字"}`
 
-### 熱鍵按了沒反應
+內容不進 log、不放進 repo；編輯出錯時，執行中的程式保留上一份可用版本。
 
-- 某些瀏覽器 / IDE 會吃掉特定 Alt 組合。Alt+J 不響就換 `Ctrl+Alt+V`、`F9`、`Win+Shift+Space`。
-- 要在「以系統管理員身分執行」的 app 裡面（PowerShell admin、工作管理員等）也活、VoxPress 自己也要用 admin 跑。
+VoxPress 也能針對指定視窗，在文字前加上 `🎤 ` 這類可見標記。接收端看到的是普通 Unicode 文字，不是可信的語音 metadata；只有當接收的 AI 或工作流知道這個約定時，它才有「這是語音轉寫，請留意同音誤植」的作用。公開預設把 `prefix` 與 `prefix_windows` 留空，避免公開個人使用習慣與視窗名稱。
 
-### 「找不到 CUDA library」
+可先把這段規則貼給要使用的 AI：
 
-走 GPU 路徑但缺 CUDA runtime DLL。兩條解：
+> 當我的訊息開頭有 `🎤`，代表這句是語音辨識產生的文字；你沒有取得原始音訊。請先按讀音與上下文理解可能的同音錯字、標點錯亂與口語贅字。遇到沒見過的怪詞，先視為可能的辨識錯誤，不要逕自創造新名詞；若仍看不懂、前後文不順或有多種合理解讀，直接簡短問我，不要硬猜。例外：程式碼、網址，以及明確標為引用或複製的文字，必須照字面精確處理，不得擅改。
 
-- `pip install voxpress[gpu]` ── 自動補 `nvidia-cublas-cu12` + `nvidia-cudnn-cu12`
-- 或在 `~/.voxpress.toml` 設 `device = "cpu"`
+先把約定告訴各個接收 AI，再在本機選擇性開啟：
 
-### Whisper 回空字串
-
-- 講大聲一點、靠近麥克風。
-- `sounddevice.query_devices()` 確認系統預設輸入裝置是對的（VoxPress 用系統預設）。
-- 講中文設 `initial_prompt = "請用繁體中文。"` 強制繁中。
-
-### 沒貼進去但剪貼簿有文字
-
-`Ctrl+V` 被 focus 的 app 擋了（某些遊戲、某些 sandboxed UI）。改 `paste_method = "clipboard_only"`、手動 Ctrl+V。
-
-## 隱私
-
-VoxPress 不蒐集任何東西、不上傳任何東西。識別完全在你電腦上跑（`faster-whisper`）。**唯一的網路活動**是第一次跑時從 Hugging Face 下載 Whisper 模型。
-
-## 包成 .exe
-
-```powershell
-pip install voxpress[dev]
-.\scripts\build_exe.ps1
-# 產出：dist\voxpress.exe
+```toml
+prefix = "🎤 "
+prefix_windows = "Assistant A,Assistant B"
 ```
 
-## License
+視窗篩選是不分大小寫的「標題子字串」，不是經驗證的 AI 身分。真實 AI／視窗名稱只放私人設定；若 `prefix` 非空而 `prefix_windows` 留空，標記會套用到所有目標視窗。
 
-MIT、詳見 [LICENSE](LICENSE)。
+公開／私人邊界，以及未來「不用手改 JSON、但不盲目自動替換」的本機詞庫學習流程，見 [Personalization](docs/PERSONALIZATION.md)。
 
-## 致謝
+## 隱私與安全
 
-- [openai/whisper](https://github.com/openai/whisper) ── 模型
-- [SYSTRAN/faster-whisper](https://github.com/SYSTRAN/faster-whisper) ── 快速推理 runtime
-- [boppreh/keyboard](https://github.com/boppreh/keyboard) ── 全域熱鍵
-- [moses-palmer/pystray](https://github.com/moses-palmer/pystray) ── 系統列圖示
+VoxPress 沒有 analytics、帳號、遠端 log 或雲端辨識。音訊與辨識正文不進一般 log／tray 通知。暫存 WAV 在成功或失敗後刪除；意外中止留下的 VoxPress 專屬舊檔會在下次啟動按年齡清理。為了失敗復原，完整結果會刻意留在系統剪貼簿。
+
+它仍然靠近敏感邊界：麥克風、全域鍵盤 hook、剪貼簿、前景視窗輸入注入、原生 audio/CUDA library 與模型下載。高風險環境使用前請讀 [隱私](docs/PRIVACY.md) 與 [安全政策](SECURITY.md)。
+
+## 限制
+
+- 只支援 Windows。
+- 管理員、鎖定、credential、遊戲、sandbox 或非文字表面可能無法貼上，或會被刻意拒絕。
+- 視窗標題／class 檢查不是萬能密碼欄偵測器。
+- 全域 hook 與模擬輸入可能觸發防毒／EDR 審查。先核對 source 與 release checksum，不建議直接加整包白名單。
+- 效能、模型大小與品質依模型、硬體、語言、音訊長度而變；本專案不宣稱通用速度或星等。
+
+## 開發
+
+```powershell
+python -m pip install -e ".[dev]"
+python -m pytest -m "not live" --strict-markers
+ruff check .
+ruff format --check .
+```
+
+另見 [貢獻指南](CONTRIBUTING.md)、[架構](docs/ARCHITECTURE.md)、[Personalization](docs/PERSONALIZATION.md)、[發布流程](docs/RELEASING.md)。
+
+## 授權與來源
+
+MIT，見 [LICENSE](LICENSE)。v0.2 的通用安全架構由 repo owner 從自己的私人維護環境整理而來；私人 TTS 流程、詞庫、transcript、設定、路徑與 runtime 產物全部排除。此公開 repo 內的檔案皆以本 repo 的 MIT license 發布。

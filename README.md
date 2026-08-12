@@ -5,201 +5,171 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6.svg)](https://github.com/rainingsnow0914tw-ship-it/voxpress)
 
-> Press a hotkey, talk, paste — anywhere on Windows.
+> Press a hotkey, speak, and paste local Whisper transcription into your current Windows app.
 
-A tiny system tray app that turns your voice into text using local Whisper, then pastes it into the focused app. No cloud, no telemetry, no account. Just press `Alt+J`, speak, release, and your words appear at the cursor.
+VoxPress is an MIT-licensed Windows tray dictation tool. It records one session at a time, runs `faster-whisper` locally, copies the result to the clipboard, and can paste it without pressing Enter. Traditional Chinese is a first-class use case, and model, language, prompt, hotkey, and paste behavior are configurable.
 
-**[繁體中文 README](README.zh-TW.md)**
+**[繁體中文說明](README.zh-TW.md)**
 
-![tray-states](docs/screenshots/states.png)
+## Current release status
 
-## Why VoxPress
+The v0.2 maintenance line is being prepared from recurring real-world use. Source installation is supported. VoxPress is **not currently published on PyPI**, and the existing v0.1 GitHub release has **no prebuilt executable asset**. Do not use `pip install voxpress` or expect an `.exe` until a future release explicitly provides and verifies those artifacts.
 
-- **Truly private** — Whisper runs locally on your machine. Audio never leaves the device.
-- **Works in any app** — Browser, terminal, IDE, chat, Notion, even admin shells. If you can type there, VoxPress can paste there.
-- **Traditional Chinese friendly** — Tested heavily on `zh-TW`. Default `large-v3` produces clean Traditional Chinese with proper punctuation. Mixed Chinese + English handled.
-- **Tiny footprint** — Single Python process, ~80 MB without the model, no Electron, no web server.
+## What v0.2 adds
 
-## Why not [other tool]?
+- Deterministic physical key down/up pairing, with left/right keys tracked separately.
+- A low-level hook that only classifies events and enqueues work; audio and Whisper run off the hook thread.
+- Toggle mode by default, plus optional hybrid tap-to-toggle / hold-to-talk behavior.
+- Session-owned audio buffers, typed failures, model reload locking, and bounded worker queues.
+- Paste guards that wait for modifiers, refuse known sensitive Windows surfaces, and never press Enter.
+- Three actual delivery modes: `ctrl_v`, `typing`, and `clipboard_only`.
+- Typed TOML configuration, `VOXPRESS_*` overrides, unknown-key warnings, and v0.1 compatibility.
+- Metadata-only rotating logs and tray notifications that never include dictated text.
+- Synthetic regression tests; CI never opens the real microphone or installs a real global hook.
 
-| Tool | License | Local / Cloud | zh-TW quality | OS | Price | Runtime |
-| --- | --- | --- | --- | --- | --- | --- |
-| **VoxPress** | **MIT** | **100% local** | **⭐⭐⭐⭐⭐ first-class** | Windows | **Free** | Single Python process, ~80 MB |
-| SuperWhisper | Closed | Local | ⭐⭐⭐ | macOS only | $8.99 / mo | Native |
-| Wispr Flow | Closed | Cloud | ⭐⭐⭐⭐ | Win / Mac | $12 / mo | Audio uploaded to their servers |
-| WhisperWriter | GPL-3.0 | Local | ⭐⭐ | Win / Mac / Linux | Free | PyQt + Whisper |
-| open-wispr | MIT | Local + Cloud | ⭐⭐ | Win / Mac / Linux | Free | Electron, ~200 MB |
-| OpenWhispr | MIT | Local + Cloud | ⭐⭐ | Win / Mac / Linux | Free | Electron + Parakeet/Whisper |
-| Whisper_SST | (unspec) | Local | ⭐⭐ | Win | Free | PyAutoGUI scripts |
-| TypeWhisper | (unspec) | Local | ⭐⭐ | Win | Free | — |
+## Data flow
 
-**What makes VoxPress different**:
-
-- **Traditional Chinese is the main use case, not an afterthought.** Built and tested daily with `zh-TW`. `large-v3` is the *default* model (not a tucked-away option). `initial_prompt` is a first-class config field for nudging Whisper toward Traditional characters and proper punctuation.
-- **No Electron.** Single Python process, ~80 MB. Most open-source dictation tools ship 200+ MB Electron shells.
-- **3 paste modes**, not just one. `ctrl_v` / `typing` / `clipboard_only` to handle apps that block clipboard paste (games, sandboxed UIs) or where you want manual control.
-- **Configurable via TOML**, not hardcoded. Change hotkey / model / language / paste behaviour without editing source.
-- **Truly local & private.** No telemetry, no account, no cloud round-trip. The only network activity is the one-time Whisper model download.
-
-## How it works
-
-```
-press Alt+J  →  record mic  →  press Alt+J again  →  Whisper transcribes
-                                                            ↓
-                                              clipboard ← text
-                                                            ↓
-                                                      simulated Ctrl+V
-                                                            ↓
-                                                 pasted into focused app
+```text
+hotkey event -> paired state machine -> bounded command queue -> microphone session
+                                                               -> local Whisper
+                                                               -> corrections/prefix
+                                                               -> guarded clipboard/paste
 ```
 
-## Install
+The default `Alt+J` workflow is press once to start and press again to stop. Set `interaction_mode = "hybrid"` for tap-to-toggle and hold-to-talk.
 
-### Option 1: pip (recommended for developers)
+## Install from source
 
-```powershell
-pip install voxpress
-
-# GPU users (NVIDIA + CUDA 12) — optional, much faster:
-pip install voxpress[gpu]
-
-# Run
-voxpress
-```
-
-### Option 2: Standalone .exe (recommended for end users)
-
-Download the latest `voxpress.exe` from [Releases](../../releases) and double-click. No Python required.
-
-### Option 3: From source
+VoxPress targets Windows and Python 3.10–3.13. The complete public CI matrix must pass before v0.2 is released.
 
 ```powershell
 git clone https://github.com/rainingsnow0914tw-ship-it/voxpress
 cd voxpress
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-pip install -e .
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e .
 voxpress
 ```
 
-## Usage
+For NVIDIA CUDA 12 support:
 
-1. After install, run `voxpress` — a purple dot appears in your system tray.
-2. Press **Alt+J** (default hotkey) — dot turns red, recording starts.
-3. Speak.
-4. Press **Alt+J** again — dot turns orange (transcribing), then back to purple. Text is pasted into whatever window has focus.
+```powershell
+python -m pip install -e ".[gpu]"
+```
 
-**First run takes longer**: Whisper downloads the model (`large-v3` is ~3 GB, cached at `%USERPROFILE%\.cache\huggingface\hub\`). Subsequent runs reuse it.
+The first transcription downloads the selected Whisper model through the model dependency's normal Hugging Face path. Later runs reuse its cache.
 
-### Tray icon colors
+## Use
 
-| Color  | Meaning                            |
-| ------ | ---------------------------------- |
-| 🟣 Purple | Idle, press hotkey to start        |
-| 🔴 Red    | Recording                          |
-| 🟠 Orange | Transcribing                       |
-| ⚫ Gray   | Error — see console for details    |
+1. Run `voxpress`; a purple dot appears in the Windows system tray.
+2. Press `Alt+J`; the dot turns red while recording.
+3. Speak, then press `Alt+J` again.
+4. The dot turns orange while local transcription runs.
+5. VoxPress copies the result and attempts the configured delivery method.
 
-### Tray menu
-
-Right-click the tray icon for:
-
-- **Show config (console)** — Prints current settings
-- **Reload model** — Forces model reload (useful after editing config)
-- **Quit** — Exits cleanly
+VoxPress does not elevate itself. A normal user process generally cannot inject input into an administrator/elevated window; use `clipboard_only` and paste manually instead of running a dictation tool as Administrator.
 
 ## Configuration
 
-VoxPress looks for `~/.voxpress.toml` (i.e. `C:\Users\<you>\.voxpress.toml`). All fields are optional.
+Create `%USERPROFILE%\.voxpress.toml`. All fields are optional.
 
 ```toml
-hotkey = "alt+j"                 # any keyboard combo; e.g. "ctrl+alt+v", "f9", "win+shift+space"
-model = "large-v3"               # tiny / base / small / medium / large-v3 / large-v3-turbo
-device = "auto"                  # auto / cuda / cpu
-compute_type = "auto"            # auto / float16 / int8 / int8_float16
-language = "auto"                # auto / zh / en / ja / ko / ... (ISO 639-1)
-initial_prompt = ""              # nudge Whisper, e.g. "Please use traditional Chinese."
-paste_method = "ctrl_v"          # ctrl_v / typing / clipboard_only
-notify = true                    # tray balloon after each transcription
+hotkey = "alt+j"
+interaction_mode = "toggle"       # toggle / hybrid
+hold_threshold_ms = 300            # used by hybrid mode
+
+model = "large-v3"
+device = "auto"                   # auto / cuda / cpu
+compute_type = "auto"
+language = "auto"                 # zh / en / ja / ko / auto / ...
+initial_prompt = ""
 sample_rate = 16000
+
+paste_method = "ctrl_v"           # ctrl_v / typing / clipboard_only
+paste_delay_ms = 200
+paste_modifier_timeout_ms = 2000
+strict_focus_guard = false
+auto_release_stuck_win = true
+
+notify = true                      # metadata only, never transcript text
+prefix = ""                        # optional marker before dictated text
+prefix_windows = ""                # comma-separated title filters; empty = all
+temp_audio_ttl_hours = 24
 ```
 
-You can also override any field via environment variables:
+Every field can also be overridden with `VOXPRESS_<FIELD>`, for example:
 
 ```powershell
-$env:VOXPRESS_HOTKEY = "ctrl+alt+v"
-$env:VOXPRESS_MODEL  = "medium"
-voxpress
+$env:VOXPRESS_MODEL = "small"
+$env:VOXPRESS_DEVICE = "cpu"
+voxpress --check-config
 ```
 
-### Model size vs. quality vs. speed
+`--check-config` prints only privacy-safe metadata. It omits prompts, prefixes, and local personalization paths.
 
-| Model           | VRAM  | Quality              | Speed (RTX 4090 / 4 sec clip) |
-| --------------- | ----- | -------------------- | ----------------------------- |
-| `tiny`          | ~1 GB | OK for English only  | <1 s                          |
-| `base`          | ~1 GB | OK                   | ~1 s                          |
-| `small`         | ~2 GB | Good                 | ~1 s                          |
-| `medium`        | ~3 GB | Great                | ~2 s                          |
-| `large-v3`      | ~3 GB | **Best, default**    | ~3 s                          |
-| `large-v3-turbo`| ~3 GB | Almost large-v3      | ~2 s                          |
+### Paste behavior
 
-CPU is ~10× slower. `small` on CPU is usable for short clips.
+- `ctrl_v`: place the full text in the clipboard and send only `Ctrl+V`.
+- `typing`: retain the full text in the clipboard and type characters directly. Newlines are flattened to preserve the no-Enter contract. If the writer fails after an uncertain partial write, VoxPress does not add a full `Ctrl+V`; use the complete clipboard text for manual recovery.
+- `clipboard_only`: copy the text and send no keys.
 
-### Paste methods
+If modifiers remain held, a sensitive target is detected, strict focus changes, or injection fails, the text remains in the clipboard for manual recovery. Sensitive-target detection is best-effort and cannot identify every password field.
 
-- `ctrl_v` (default) — Most reliable. Works everywhere a clipboard paste works.
-- `typing` — Types character by character. Useful where Ctrl+V is blocked or transformed.
-- `clipboard_only` — Just copies to clipboard, you paste manually. Useful for sensitive contexts.
+## Personal vocabulary and corrections
 
-## Troubleshooting
+Optional user-scoped files live under `%USERPROFILE%\.voxpress\`:
 
-### Antivirus warning
+- `vocab.json`: synthetic example shape `{"style_hint":"Traditional Chinese","terms":["project term"]}`
+- `corrections.json`: synthetic example shape `{"common mishearing":"preferred text"}`
 
-VoxPress uses the `keyboard` library to register global hotkeys + the Windows `SendInput` API to simulate Ctrl+V. Some antivirus / EDR products flag this pattern as keylogger-like behavior.
+Their contents are not logged or included in this repository. Invalid edits keep the last known-good in-memory version.
 
-**It is not a keylogger.** VoxPress only sends keystrokes (Ctrl+V); it does not capture anything you type. Source is open, audit freely. If your AV blocks it, add an exception for the `voxpress` install folder.
+VoxPress can also prepend a visible marker such as `🎤 ` to selected target windows. The receiving application sees it as ordinary Unicode text, not trusted voice metadata; it is useful only when the receiving AI or workflow is told what the marker means. Public defaults leave `prefix` and `prefix_windows` empty so local app names and habits remain private.
 
-### Hotkey "doesn't work"
+Opt in locally after teaching each receiving AI the convention:
 
-- Some browsers / IDEs grab certain Alt combos. If `Alt+J` doesn't fire, try `Ctrl+Alt+V`, `F9`, or `Win+Shift+Space`.
-- On Windows, registering hotkeys may require running as Administrator if you also want VoxPress to work *inside* elevated apps (PowerShell admin, Task Manager, etc.).
+```toml
+prefix = "🎤 "
+prefix_windows = "Assistant A,Assistant B"
+```
 
-### "CUDA library not found"
+Window filters are case-insensitive title substrings, not verified AI identities. Keep real assistant/window names in the private local config. If `prefix` is non-empty and `prefix_windows` is empty, the marker is applied to every target window.
 
-You're on the GPU path but missing the CUDA runtime DLLs. Either:
+See [Personalization](docs/PERSONALIZATION.md) for the public/private boundary and the planned local, confirmation-gated learning workflow. The goal is to eliminate hand-editing without blindly turning every model guess into a global replacement.
 
-- `pip install voxpress[gpu]` to add `nvidia-cublas-cu12` + `nvidia-cudnn-cu12`, or
-- Set `device = "cpu"` in `~/.voxpress.toml`.
+## Privacy and security
 
-### Whisper returns empty text
+VoxPress has no analytics, account, remote logging, or cloud transcription. Audio and transcript content are not written to routine logs or tray notifications. Temporary WAV files are deleted after success or failure; old VoxPress-prefixed crash remnants are age-cleaned at startup. The complete clipboard result intentionally remains available for recovery.
 
-- Speak louder, closer to the mic.
-- Check `sounddevice.query_devices()` to ensure the right input device is selected (VoxPress uses the system default).
-- For Mandarin Chinese, set `initial_prompt = "請用繁體中文。"` to nudge the language.
+The application still has a sensitive endpoint footprint: microphone access, a global keyboard hook, clipboard writes, focused-window input injection, native audio/CUDA libraries, and model downloads. Read [Privacy](docs/PRIVACY.md) and [Security](SECURITY.md) before deploying it in a high-risk environment.
 
-### Pastes nothing but the clipboard has the text
+## Limitations
 
-`Ctrl+V` was blocked by the focused app (some games, some sandboxed UIs). Switch to `paste_method = "clipboard_only"` and paste manually.
+- Windows only.
+- Paste into elevated, locked, credential, game, sandboxed, or non-text surfaces may be blocked or intentionally refused.
+- Window-title/class checks are best-effort, not a universal password-field detector.
+- Global hook and simulated input behavior can trigger antivirus/EDR review. Verify source and release checksums; do not add a blanket antivirus exception.
+- Performance and model size depend on model, hardware, language, and audio length; this project does not publish universal speed or quality ratings.
 
-## Privacy
-
-VoxPress collects nothing. Sends nothing. Transcription happens entirely on your device via `faster-whisper`. The only network activity is the one-time download of the Whisper model from Hugging Face on first run.
-
-## Build standalone .exe
+## Development
 
 ```powershell
-pip install voxpress[dev]
-.\scripts\build_exe.ps1
-# Output: dist\voxpress.exe
+python -m pip install -e ".[dev]"
+python -m pytest -m "not live" --strict-markers
+ruff check .
+ruff format --check .
 ```
 
-## License
+See [Contributing](CONTRIBUTING.md), [Architecture](docs/ARCHITECTURE.md), [Personalization](docs/PERSONALIZATION.md), and [Releasing](docs/RELEASING.md).
 
-MIT. See [LICENSE](LICENSE).
+## License and provenance
+
+MIT. See [LICENSE](LICENSE). The v0.2 generic safety architecture consolidates work performed by the repository owner in a private maintenance environment; private TTS workflows, vocabulary, transcripts, configuration, paths, and runtime artifacts are excluded. The public files in this repository are released under its MIT license.
 
 ## Acknowledgements
 
-- [openai/whisper](https://github.com/openai/whisper) for the model
-- [SYSTRAN/faster-whisper](https://github.com/SYSTRAN/faster-whisper) for the fast inference runtime
-- [boppreh/keyboard](https://github.com/boppreh/keyboard) for global hotkeys
-- [moses-palmer/pystray](https://github.com/moses-palmer/pystray) for the tray icon
+- [OpenAI Whisper](https://github.com/openai/whisper)
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
+- [keyboard](https://github.com/boppreh/keyboard)
+- [pystray](https://github.com/moses-palmer/pystray)

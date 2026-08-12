@@ -1,120 +1,39 @@
-"""Whisper STT engine — lazy load, in-process, no HTTP."""
-import os
-import sys
-import tempfile
-import threading
-import wave
-from pathlib import Path
+"""Compatibility layer for the public VoxPress v0.1 transcription API."""
+
+from __future__ import annotations
+
 from typing import Optional
 
-
-def _ensure_cuda_libs_in_path():
-    """nvidia-cublas-cu12 + nvidia-cudnn-cu12 DLL 路徑加進 Windows DLL search、
-    給 CTranslate2 找。faster-whisper GPU 模式需要。
-
-    支援兩種套件結構:
-    - 舊版:  DLL 在 nvidia/{cublas,cudnn}/lib/
-    - 12.9+: DLL 在 nvidia/{cublas,cudnn}/bin/  (nvidia-cublas-cu12 12.9.2+ 起改此結構)
-    """
-    if sys.platform != "win32":
-        return
-
-    import importlib.util
-    added = []
-    for pkg_name in ("nvidia.cublas", "nvidia.cudnn"):
-        try:
-            spec = importlib.util.find_spec(pkg_name)
-            if not spec or not spec.submodule_search_locations:
-                continue
-            for base in spec.submodule_search_locations:
-                pkg_dir = Path(base)
-                # 12.9+ 新結構 bin/ 優先, 舊版 lib/ 兜底
-                for subdir in ("bin", "lib"):
-                    target = pkg_dir / subdir
-                    if target.is_dir():
-                        try:
-                            os.add_dll_directory(str(target))
-                            os.environ["PATH"] = str(target) + os.pathsep + os.environ.get("PATH", "")
-                            added.append(str(target))
-                        except OSError:
-                            pass
-        except Exception:
-            continue
-
-    if added:
-        print(f"[voxpress] CUDA DLL paths: {len(added)} dir(s) added")
+from voxpress.transcribe import WhisperEngine as _WhisperEngine
+from voxpress.transcribe import make_wav_bytes
 
 
-class WhisperEngine:
-    """faster-whisper 包裝、lazy load、thread-safe transcribe。"""
-
-    def __init__(self, model_size: str = "large-v3",
-                 device: str = "cpu", compute_type: str = "int8",
-                 language: Optional[str] = None,
-                 initial_prompt: str = ""):
-        self.model_size = model_size
-        self.device = device
-        self.compute_type = compute_type
-        self.language = None if not language or language == "auto" else language
+class WhisperEngine(_WhisperEngine):
+    def __init__(
+        self,
+        model_size: str = "large-v3",
+        device: str = "cpu",
+        compute_type: str = "int8",
+        language: Optional[str] = None,
+        initial_prompt: str = "",
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            model_size=model_size,
+            device=device,
+            compute_type=compute_type,
+            language=language,
+            **kwargs,
+        )
         self.initial_prompt = initial_prompt or None
-        self._model = None
-        self._lock = threading.Lock()
-        if device == "cuda":
-            _ensure_cuda_libs_in_path()
-
-    @property
-    def loaded(self) -> bool:
-        return self._model is not None
-
-    def load(self):
-        """eager load — 預載模型省第一次延遲。"""
-        with self._lock:
-            if self._model is not None:
-                return
-            from faster_whisper import WhisperModel
-            print(f"[voxpress] loading whisper {self.model_size} on {self.device} ({self.compute_type})")
-            self._model = WhisperModel(
-                self.model_size, device=self.device, compute_type=self.compute_type
-            )
-            print(f"[voxpress] whisper loaded")
 
     def transcribe_wav(self, wav_bytes: bytes) -> dict:
-        """收 wav bytes、回 {text, language, duration}。"""
-        if self._model is None:
-            self.load()
-        # 寫到 tmp file（faster-whisper 接 path 比較穩）
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            f.write(wav_bytes)
-            path = f.name
-        try:
-            segments, info = self._model.transcribe(
-                path,
-                language=self.language,
-                task="transcribe",
-                initial_prompt=self.initial_prompt,
-                vad_filter=True,
-                vad_parameters={"min_silence_duration_ms": 500},
-            )
-            text_parts = [s.text for s in segments]
-            return {
-                "text": "".join(text_parts).strip(),
-                "language": info.language,
-                "duration": info.duration,
-            }
-        finally:
-            try: Path(path).unlink(missing_ok=True)
-            except Exception: pass
+        result = self.transcribe(wav_bytes, initial_prompt=self.initial_prompt)
+        return {
+            "text": result.text,
+            "language": result.language,
+            "duration": result.duration,
+        }
 
 
-def make_wav_bytes(audio_float32, sample_rate: int = 16000) -> bytes:
-    """numpy float32 mono [-1, 1] → 16-bit PCM WAV bytes。"""
-    import numpy as np
-    import io
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(sample_rate)
-        audio_i16 = np.clip(audio_float32 * 32767, -32768, 32767).astype(np.int16)
-        wf.writeframes(audio_i16.tobytes())
-    return buf.getvalue()
+__all__ = ["WhisperEngine", "make_wav_bytes"]
