@@ -5,7 +5,7 @@ keyboard>=0.13.5
 pyperclip>=1.8.2
 pystray>=0.19.5
 pillow>=10.0
-tomli>=2.0; python_version < "3.11"
+tomli>=2.4.1; python_version < "3.11"
 
 # Optional: GPU support (uncomment if you have NVIDIA GPU + CUDA 12)
 # nvidia-cublas-cu12
