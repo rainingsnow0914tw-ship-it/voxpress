@@ -140,6 +140,41 @@ def send_key_up(vk: int) -> bool:
     return sent == 1
 
 
+#: Unassigned virtual key (the same "menu mask key" AutoHotkey uses).  Tapping
+#: it between a modifier's down and up stops Windows treating the modifier
+#: release as a lone tap, without typing anything or triggering a shortcut.
+VK_MODIFIER_MASK = 0xE8
+
+
+def send_modifier_mask() -> bool:
+    """Synthesise a down+up of :data:`VK_MODIFIER_MASK`.  True if accepted."""
+    if not IS_WINDOWS:
+        return False
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    inputs = (_INPUT * 2)(
+        _INPUT(
+            type=_INPUT_KEYBOARD,
+            union=_INPUTUNION(
+                ki=_KEYBDINPUT(wVk=VK_MODIFIER_MASK, wScan=0, dwFlags=0, time=0, dwExtraInfo=0)
+            ),
+        ),
+        _INPUT(
+            type=_INPUT_KEYBOARD,
+            union=_INPUTUNION(
+                ki=_KEYBDINPUT(
+                    wVk=VK_MODIFIER_MASK,
+                    wScan=0,
+                    dwFlags=_KEYEVENTF_KEYUP,
+                    time=0,
+                    dwExtraInfo=0,
+                )
+            ),
+        ),
+    )
+    sent = user32.SendInput(2, inputs, ctypes.sizeof(_INPUT))
+    return sent == 2
+
+
 #: Map from the `keyboard` library's canonical names to virtual key codes, so a
 #: KeyId recorded by the state machine can be released if it is ever stranded.
 NAME_TO_VK: dict[str, int] = {

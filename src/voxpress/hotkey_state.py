@@ -112,6 +112,12 @@ class Decision:
     disposition: Disposition
     commands: tuple[Command, ...] = ()
     note: str = ""
+    #: True when a main-key DOWN was swallowed while a modifier is held.  The
+    #: OS then sees e.g. Alt-down/Alt-up with nothing between them — an
+    #: "orphan" Alt tap that activates the focused window's menu bar (a bare
+    #: Win tap opens Start).  The hook answers this by injecting an unassigned
+    #: mask key so the modifier release is no longer a lone tap.
+    mask_modifier_release: bool = False
 
     @property
     def suppress(self) -> bool:
@@ -261,7 +267,10 @@ class HotkeyStateMachine:
         disposition = Disposition.SUPPRESS if self.config.suppress_main_key else Disposition.PASS
         self._remember(event.key, disposition, event.timestamp)
         commands = self._on_press(event)
-        return Decision(disposition, commands, note="hotkey_down")
+        # Modifiers are forwarded but the main key is not, so without a mask
+        # the OS would see a lone modifier tap (default alt+j -> menu bar).
+        mask = disposition is Disposition.SUPPRESS and bool(self._modifiers_down)
+        return Decision(disposition, commands, note="hotkey_down", mask_modifier_release=mask)
 
     def _handle_main_up(self, event: KeyEvent) -> Decision:
         prior = self._pending.pop(event.key, None)

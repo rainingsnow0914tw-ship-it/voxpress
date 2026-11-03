@@ -644,3 +644,83 @@ def test_every_logical_modifier_group_is_required() -> None:
     d.up(LCTRL)
     assert d.command_types() == [CommandType.START_RECORDING, CommandType.STOP_RECORDING]
     d.os.assert_nothing_held()
+
+
+# =====================================================================
+# Orphan modifier tap (default alt+j)
+# =====================================================================
+
+LALT = KeyId(56, "left alt")
+ALT_J = HotkeyConfig(
+    main_scan_codes=frozenset({36}),
+    modifier_scan_codes=frozenset({56}),
+    modifier_scan_code_groups=(frozenset({56}),),
+)
+
+
+def _os_saw_lone_modifier_tap(d: Driver) -> bool:
+    """True if Windows saw Alt-down then Alt-up with no key (nor mask) between."""
+    alt_open = False
+    saw_other = False
+    for event, decision in d.decisions:
+        if event.key == LALT:
+            if event.is_down:
+                alt_open, saw_other = True, False
+            elif alt_open and not saw_other:
+                return True
+            continue
+        if decision.disposition is Disposition.PASS or decision.mask_modifier_release:
+            saw_other = True
+    return False
+
+
+def test_alt_j_requests_modifier_mask_so_alt_release_is_not_a_lone_tap() -> None:
+    d = Driver(ALT_J)
+    d.down(LALT)
+    down = d.down(LETTER_J)
+    up = d.up(LETTER_J)
+    d.up(LALT)
+
+    assert down.suppress and down.mask_modifier_release
+    assert up.suppress and not up.mask_modifier_release
+    assert not _os_saw_lone_modifier_tap(d)
+    assert d.command_types() == [CommandType.START_RECORDING]
+    d.os.assert_nothing_held()
+
+
+def test_alt_j_toggle_second_press_is_masked_too() -> None:
+    d = Driver(ALT_J)
+    for _ in range(2):
+        d.down(LALT)
+        d.down(LETTER_J)
+        d.up(LETTER_J)
+        d.up(LALT)
+        d.advance_ms(500)
+    assert d.command_types() == [CommandType.START_RECORDING, CommandType.STOP_RECORDING]
+    assert not _os_saw_lone_modifier_tap(d)
+
+
+def test_alt_j_auto_repeat_does_not_spam_masks() -> None:
+    d = Driver(ALT_J)
+    d.down(LALT)
+    first = d.down(LETTER_J)
+    repeats = [d.down(LETTER_J) for _ in range(5)]
+    d.up(LETTER_J)
+    d.up(LALT)
+    assert first.mask_modifier_release
+    assert not any(r.mask_modifier_release for r in repeats)
+
+
+def test_unsuppressed_or_bare_main_key_needs_no_mask() -> None:
+    bare = Driver(ALT_J)
+    assert not bare.down(LETTER_J).mask_modifier_release  # plain "j" typing
+
+    passthrough = Driver(
+        HotkeyConfig(
+            main_scan_codes=frozenset({36}),
+            modifier_scan_codes=frozenset({56}),
+            suppress_main_key=False,
+        )
+    )
+    passthrough.down(LALT)
+    assert not passthrough.down(LETTER_J).mask_modifier_release

@@ -140,6 +140,9 @@ class HotkeyHook:
         for command in commands:
             self._enqueue(command)
 
+        if decision.mask_modifier_release:
+            self._send_modifier_mask()
+
         if self._logger and decision.note in ("hotkey_down", "hotkey_up", "repeat"):
             # Diagnostic only: scan codes and dispositions, never key contents.
             self._logger.diagnostic(
@@ -164,6 +167,22 @@ class HotkeyHook:
             timestamp=self._clock(),
             injected=injected,
         )
+
+    def _send_modifier_mask(self) -> None:
+        """Break up the lone modifier tap left by a swallowed main key.
+
+        The injected mask key is queued behind the current (suppressed)
+        main-key DOWN, so Windows sees Alt-down, mask, Alt-up instead of a bare
+        Alt tap.  Its scan code is unrelated to the hotkey, so it passes
+        straight through this hook.  Best effort: a failure only means the
+        menu bar may still flash, never a stuck key.
+        """
+        try:
+            ok = winkeys.send_modifier_mask()
+        except Exception:  # pragma: no cover - defensive
+            ok = False
+        if not ok and self._logger:
+            self._logger.diagnostic("hotkey_modifier_mask_not_sent")
 
     def _enqueue(self, command: Command) -> None:
         try:
