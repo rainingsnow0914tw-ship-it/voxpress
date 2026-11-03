@@ -177,3 +177,32 @@ def test_personalization_paths_are_user_scoped() -> None:
     config = VoxpressConfig()
     assert config.resolved_vocab_path().parent.name == ".voxpress"
     assert config.resolved_corrections_path().parent.name == ".voxpress"
+
+
+@pytest.mark.parametrize(
+    "hotkey",
+    ["alt", "ctrl", "shift", "left alt", "alt gr", "ctrl+alt", "ctrl+shift", "windows", "win"],
+)
+def test_modifier_only_hotkey_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hotkey: str
+) -> None:
+    monkeypatch.delenv("VOXPRESS_HOTKEY", raising=False)
+    target = tmp_path / ".voxpress.toml"
+    target.write_text(f'hotkey = "{hotkey}"\n', encoding="utf-8")
+    config = load_config(config_path=target)
+    assert config.hotkey == "alt+j"
+    assert any(
+        "only modifier keys" in warning and repr(hotkey) in warning for warning in config.warnings
+    ), config.warnings
+
+
+@pytest.mark.parametrize("hotkey", ["alt+j", "ctrl+shift+k", "z", "ctrl+windows"])
+def test_hotkeys_with_a_main_key_are_accepted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hotkey: str
+) -> None:
+    monkeypatch.delenv("VOXPRESS_HOTKEY", raising=False)
+    target = tmp_path / ".voxpress.toml"
+    target.write_text(f'hotkey = "{hotkey}"\n', encoding="utf-8")
+    config = load_config(config_path=target)
+    assert config.hotkey == hotkey
+    assert not any("hotkey" in warning for warning in config.warnings), config.warnings

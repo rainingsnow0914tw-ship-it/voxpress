@@ -62,9 +62,13 @@ def read_json_checked(path: Path, default: Any = None) -> tuple[bool, Any, str |
         raw = path.read_text(encoding=_ENCODING)
     except FileNotFoundError:
         return False, default, "absent"
+    except UnicodeDecodeError:
+        # Raised by ``read_text`` (not by ``json.loads``) when the bytes are
+        # not valid UTF-8, so it must be caught here, around the read.
+        return False, default, "corrupt"
     except OSError:
         return False, default, "unreadable"
     try:
         return True, json.loads(raw), None
-    except (ValueError, UnicodeDecodeError):
+    except ValueError:
         return False, default, "corrupt"

@@ -192,6 +192,12 @@ def _coerce(name: str, raw: Any, warnings: list[str]) -> Any | None:
     if name == "hotkey" and not value.strip():
         warnings.append("hotkey is empty; using the default")
         return None
+    if name == "hotkey" and _is_modifier_only_hotkey(value):
+        warnings.append(
+            f"hotkey={value!r} contains only modifier keys (ctrl/alt/shift/windows); "
+            f"add a regular key such as 'alt+j'; using {expected!r}"
+        )
+        return None
     return value
 
 
@@ -272,6 +278,38 @@ def parse_hotkey(hotkey: str) -> tuple[str, tuple[str, ...]]:
     if not parts:
         return "j", ("alt",)
     return parts[-1], tuple(parts[:-1])
+
+
+MODIFIER_KEY_NAMES = frozenset(
+    {
+        "ctrl",
+        "control",
+        "left ctrl",
+        "right ctrl",
+        "alt",
+        "left alt",
+        "right alt",
+        "alt gr",
+        "shift",
+        "left shift",
+        "right shift",
+    }
+)
+WINDOWS_KEY_NAMES = frozenset({"windows", "win", "cmd", "left windows", "right windows"})
+
+
+def _is_modifier_only_hotkey(hotkey: str) -> bool:
+    """True when *hotkey* has no usable main key, e.g. ``alt`` or ``ctrl+shift``.
+
+    ``ctrl+windows`` stays allowed: the hotkey state machine was built around
+    the Windows key as a suppressed main key, but only together with a
+    modifier, so a bare ``windows`` is rejected as well.
+    """
+
+    main_key, modifiers = parse_hotkey(hotkey)
+    if main_key in MODIFIER_KEY_NAMES:
+        return True
+    return main_key in WINDOWS_KEY_NAMES and not modifiers
 
 
 OS_RESERVED_KEYS = frozenset(

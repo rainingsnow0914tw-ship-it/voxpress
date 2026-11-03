@@ -324,3 +324,27 @@ def test_completed_suppressed_pair_is_a_short_lived_recovery_candidate(
     assert hook.watchdog_recovery_candidates() == (VK_LWIN,)
     hook.test_clock.advance_ms(2100)  # type: ignore[attr-defined]
     assert hook.watchdog_recovery_candidates() == ()
+
+
+def test_hook_injects_modifier_mask_once_per_swallowed_hotkey_down(
+    _no_real_modifier_mask: list[int],
+) -> None:
+    hook = HotkeyHook(
+        HotkeyConfig(
+            main_scan_codes=frozenset({36}),
+            modifier_scan_codes=frozenset({56}),
+            modifier_scan_code_groups=(frozenset({56}),),
+        ),
+        clock=Clock(),
+    )
+    assert hook._on_raw_event(FakeKeyboardEvent(56, "left alt", "down")) is True
+    assert hook._on_raw_event(FakeKeyboardEvent(36, "j", "down")) is False
+    assert hook._on_raw_event(FakeKeyboardEvent(36, "j", "down")) is False  # auto-repeat
+    assert hook._on_raw_event(FakeKeyboardEvent(36, "j", "up")) is False
+    assert hook._on_raw_event(FakeKeyboardEvent(56, "left alt", "up")) is True
+    assert _no_real_modifier_mask == [1]
+
+    # Typing a plain "j" must never inject anything.
+    hook._on_raw_event(FakeKeyboardEvent(36, "j", "down"))
+    hook._on_raw_event(FakeKeyboardEvent(36, "j", "up"))
+    assert _no_real_modifier_mask == [1]
